@@ -3,7 +3,7 @@
 <plugin>
    <!--
       Headless Equinox application entry point. Launched like:
-         eclipsec.exe -application com.servoy.mat.mcp.server <heapdump.hprof>
+         eclipsec.exe -application com.servoy.mat.mcp.server [heapdump.hprof]
       The application opens the snapshot once and then serves MCP over stdio.
    -->
    <extension

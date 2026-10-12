@@ -15,6 +15,11 @@ Import-Package: org.eclipse.mat.snapshot,
  org.eclipse.mat.snapshot.query,
  org.eclipse.mat.query,
  org.eclipse.mat.query.results,
- org.eclipse.mat.util
+ org.eclipse.mat.util,
+ io.modelcontextprotocol.server,
+ io.modelcontextprotocol.server.transport,
+ io.modelcontextprotocol.spec,
+ io.modelcontextprotocol.json,
+ io.modelcontextprotocol.common
 Bundle-Activator: com.servoy.mat.mcp.internal.Activator
 Bundle-ActivationPolicy: lazy

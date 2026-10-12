@@ -5,8 +5,16 @@
  */
 package com.servoy.mat.mcp.internal;
 
+import java.util.concurrent.CountDownLatch;
+
 import org.eclipse.equinox.app.IApplication;
 import org.eclipse.equinox.app.IApplicationContext;
+
+import io.modelcontextprotocol.json.McpJsonDefaults;
+import io.modelcontextprotocol.server.McpServer;
+import io.modelcontextprotocol.server.McpSyncServer;
+import io.modelcontextprotocol.server.transport.StdioServerTransportProvider;
+import io.modelcontextprotocol.spec.McpSchema.ServerCapabilities;
 
 /**
  * Headless Equinox application entry point for the MAT MCP server.
@@ -14,46 +22,77 @@ import org.eclipse.equinox.app.IApplicationContext;
  * <p>Launched as:</p>
  *
  * <pre>
- *   eclipsec.exe -application com.servoy.mat.mcp.server &lt;heapdump.hprof&gt;
+ *   eclipsec.exe -application com.servoy.mat.mcp.server [heapdump.hprof]
  * </pre>
  *
- * <p>Skeleton stage: it opens the snapshot once (via {@link SnapshotSession}) and prints the heap
- * overview. The MCP stdio server (io.modelcontextprotocol.sdk) and the tool registry
- * (open_snapshot, oql, dominator_tree, path_to_gc_roots, read_object, thread_stacks, ...) are
- * wired in on top of this open session in the next iteration.</p>
+ * <p>It starts an MCP server over stdio and keeps running until the stdin stream closes (the MCP
+ * client disconnects). The MAT snapshot is opened once — either eagerly from a .hprof passed on the
+ * command line, or lazily via the {@code open_snapshot} tool — and stays resident so OQL and the
+ * other tools query the same in-memory {@code ISnapshot}.</p>
+ *
+ * <p>stdout is reserved for the MCP JSON-RPC protocol, so all diagnostics go to stderr.</p>
  */
 public class MatMcpApplication implements IApplication
 {
+	private volatile McpSyncServer server;
+	private final CountDownLatch shutdown = new CountDownLatch(1);
+
 	@Override
 	public Object start(IApplicationContext context) throws Exception
 	{
 		String[] args = (String[])context.getArguments().get(IApplicationContext.APPLICATION_ARGS);
 		String hprofPath = firstHprofArg(args);
-		if (hprofPath == null)
-		{
-			System.err.println("Usage: -application com.servoy.mat.mcp.server <heapdump.hprof>"); //$NON-NLS-1$
-			return Integer.valueOf(2);
-		}
 
-		System.out.println("[mat-mcp] opening snapshot: " + hprofPath); //$NON-NLS-1$
-		long t0 = System.nanoTime();
-		try (SnapshotSession session = SnapshotSession.open(hprofPath))
+		MatMcpTools tools;
+		if (hprofPath != null)
 		{
+			System.err.println("[mat-mcp] opening snapshot: " + hprofPath); //$NON-NLS-1$
+			long t0 = System.nanoTime();
+			SnapshotSession eager = SnapshotSession.open(hprofPath);
 			long ms = (System.nanoTime() - t0) / 1_000_000L;
-			System.out.println("[mat-mcp] snapshot opened in " + ms + " ms"); //$NON-NLS-1$ //$NON-NLS-2$
-			System.out.println("[mat-mcp] overview: " + session.overviewJson()); //$NON-NLS-1$
-
-			// TODO next iteration: start the MCP stdio server here and keep this session open,
-			// registering the tools that query the live ISnapshot. For now we just prove the
-			// snapshot opens and report the overview, then exit.
+			System.err.println("[mat-mcp] snapshot opened in " + ms + " ms"); //$NON-NLS-1$ //$NON-NLS-2$
+			tools = new MatMcpTools(eager);
 		}
+		else
+		{
+			System.err.println("[mat-mcp] no heap dump on command line; waiting for open_snapshot tool call"); //$NON-NLS-1$
+			tools = new MatMcpTools();
+		}
+
+		StdioServerTransportProvider transport = new StdioServerTransportProvider(McpJsonDefaults.getMapper());
+
+		server = McpServer.sync(transport)
+			.serverInfo("mat-mcp", "1.0.0") //$NON-NLS-1$ //$NON-NLS-2$
+			.capabilities(ServerCapabilities.builder()
+				.tools(true)
+				.build())
+			.tools(tools.specifications().toArray(new io.modelcontextprotocol.server.McpServerFeatures.SyncToolSpecification[0]))
+			.build();
+
+		System.err.println("[mat-mcp] MCP stdio server ready"); //$NON-NLS-1$
+
+		// Block the application thread until stop() is called (stdin closed / platform shutdown).
+		shutdown.await();
+
+		tools.closeSession();
 		return IApplication.EXIT_OK;
 	}
 
 	@Override
 	public void stop()
 	{
-		// nothing to do yet; the try-with-resources in start() disposes the snapshot
+		try
+		{
+			McpSyncServer s = server;
+			if (s != null)
+			{
+				s.closeGracefully();
+			}
+		}
+		finally
+		{
+			shutdown.countDown();
+		}
 	}
 
 	private static String firstHprofArg(String[] args)
