@@ -19,6 +19,7 @@
 	<modules>
 		<module>com.servoy.mat.mcp</module>
 		<module>com.servoy.mat.mcp.feature</module>
+		<module>com.servoy.mat.mcp.repository</module>
 	</modules>
 
 	<build>

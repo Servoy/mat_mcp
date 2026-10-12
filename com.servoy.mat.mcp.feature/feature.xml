@@ -14,11 +14,21 @@
       terms of the Eclipse Public License 2.0.
    </license>
 
-   <plugin
-         id="com.servoy.mat.mcp"
-         download-size="0"
-         install-size="0"
-         version="0.0.0"
-         unpack="false"/>
+   <!-- our plugin -->
+   <plugin id="com.servoy.mat.mcp" download-size="0" install-size="0" version="0.0.0" unpack="false"/>
+
+   <!--
+      Runtime bundles that MAT does not already ship and that must be installed alongside the
+      plugin: the MCP Java SDK, its Jackson 2 JSON binding, Project Reactor + reactive-streams
+      (the SDK is reactive internally), the Jackson annotations the SDK needs, and the Jetty EE10
+      (jakarta) servlet layer that the MCP servlet transport is compiled against. The core Jetty
+      bundles (server/io/util/http/...) and slf4j are already present in MAT and are not duplicated.
+   -->
+   <plugin id="io.modelcontextprotocol.sdk.mcp-core" download-size="0" install-size="0" version="0.0.0" unpack="false"/>
+   <plugin id="io.modelcontextprotocol.sdk.mcp-json-jackson2" download-size="0" install-size="0" version="0.0.0" unpack="false"/>
+   <plugin id="io.projectreactor.reactor-core" download-size="0" install-size="0" version="0.0.0" unpack="false"/>
+   <plugin id="reactive-streams" download-size="0" install-size="0" version="0.0.0" unpack="false"/>
+   <plugin id="com.fasterxml.jackson.core.jackson-annotations" download-size="0" install-size="0" version="0.0.0" unpack="false"/>
+   <plugin id="org.eclipse.jetty.ee10.servlet" download-size="0" install-size="0" version="0.0.0" unpack="false"/>
 
 </feature>

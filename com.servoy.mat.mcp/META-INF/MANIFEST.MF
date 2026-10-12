@@ -20,6 +20,12 @@ Import-Package: org.eclipse.mat.snapshot,
  io.modelcontextprotocol.server.transport,
  io.modelcontextprotocol.spec,
  io.modelcontextprotocol.json,
- io.modelcontextprotocol.common
+ io.modelcontextprotocol.common,
+ jakarta.servlet,
+ jakarta.servlet.http,
+ org.eclipse.jetty.server,
+ org.eclipse.jetty.util,
+ org.eclipse.jetty.util.component,
+ org.eclipse.jetty.ee10.servlet
 Bundle-Activator: com.servoy.mat.mcp.internal.Activator
 Bundle-ActivationPolicy: lazy

@@ -37,6 +37,18 @@
 					<version>2.0.1</version>
 					<type>jar</type>
 				</dependency>
+				<!--
+					MAT 1.17 ships Jetty 12.1.6 but only the EE8 (javax.servlet) servlet layer, while the
+					MCP servlet transport is compiled against jakarta.servlet 6.x. Pull the matching EE10
+					(jakarta) servlet layer at the same 12.1.6 so the shared core Jetty server/io/util
+					bundles already present in MAT are reused and only the EE10 servlet classes are added.
+				-->
+				<dependency>
+					<groupId>org.eclipse.jetty.ee10</groupId>
+					<artifactId>jetty-ee10-servlet</artifactId>
+					<version>12.1.6</version>
+					<type>jar</type>
+				</dependency>
 			</dependencies>
 		</location>
 	</locations>
