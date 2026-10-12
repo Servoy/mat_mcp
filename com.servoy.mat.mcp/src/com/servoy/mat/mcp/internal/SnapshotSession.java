@@ -7,10 +7,10 @@ package com.servoy.mat.mcp.internal;
 
 import java.io.File;
 
-import org.eclipse.core.runtime.NullProgressMonitor;
 import org.eclipse.mat.snapshot.ISnapshot;
 import org.eclipse.mat.snapshot.SnapshotFactory;
 import org.eclipse.mat.snapshot.SnapshotInfo;
+import org.eclipse.mat.util.VoidProgressListener;
 
 /**
  * Holds a single parsed MAT heap-dump {@link ISnapshot} open for the lifetime of the MCP session,
@@ -52,7 +52,7 @@ public final class SnapshotSession implements AutoCloseable
 			throw new IllegalArgumentException("Heap dump not found: " + file.getAbsolutePath()); //$NON-NLS-1$
 		}
 		// SnapshotFactory parses the dump and reuses the on-disk indexes when present.
-		ISnapshot snapshot = SnapshotFactory.openSnapshot(file, new NullProgressMonitor());
+		ISnapshot snapshot = SnapshotFactory.openSnapshot(file, new VoidProgressListener());
 		return new SnapshotSession(file, snapshot);
 	}
 
