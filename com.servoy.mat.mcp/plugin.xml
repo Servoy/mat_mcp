@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<?eclipse version="3.4"?>
+<plugin>
+   <!--
+      Headless Equinox application entry point. Launched like:
+         eclipsec.exe -application com.servoy.mat.mcp.server <heapdump.hprof>
+      The application opens the snapshot once and then serves MCP over stdio.
+   -->
+   <extension
+         id="server"
+         point="org.eclipse.core.runtime.applications">
+      <application
+            cardinality="singleton-global"
+            thread="main"
+            visible="true">
+         <run class="com.servoy.mat.mcp.internal.MatMcpApplication"/>
+      </application>
+   </extension>
+</plugin>

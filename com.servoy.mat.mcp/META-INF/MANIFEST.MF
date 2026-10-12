@@ -1,0 +1,20 @@
+Manifest-Version: 1.0
+Bundle-ManifestVersion: 2
+Bundle-Name: MAT MCP Server
+Bundle-SymbolicName: com.servoy.mat.mcp;singleton:=true
+Bundle-Version: 1.0.0.qualifier
+Bundle-Vendor: Servoy
+Automatic-Module-Name: com.servoy.mat.mcp
+Bundle-RequiredExecutionEnvironment: JavaSE-21
+Require-Bundle: org.eclipse.core.runtime;bundle-version="3.3.100",
+ org.eclipse.mat.api;bundle-version="1.17.0",
+ org.eclipse.mat.report;bundle-version="1.17.0",
+ org.eclipse.mat.parser;bundle-version="1.17.0"
+Import-Package: org.eclipse.mat.snapshot,
+ org.eclipse.mat.snapshot.model,
+ org.eclipse.mat.snapshot.query,
+ org.eclipse.mat.query,
+ org.eclipse.mat.query.results,
+ org.eclipse.mat.util
+Bundle-Activator: com.servoy.mat.mcp.internal.Activator
+Bundle-ActivationPolicy: lazy

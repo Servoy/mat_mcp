@@ -1,0 +1,33 @@
+# Eclipse PDE / Tycho build output
+target/
+bin/
+**/target/
+**/bin/
+
+# Eclipse workspace metadata
+.metadata/
+*.launch
+.recommenders/
+
+# MAT heap-dump indexes accidentally dropped in the tree
+*.hprof
+*.index
+*.a2s.index
+*.domIn.index
+*.domOut.index
+*.idx.index
+*.inbound.index
+*.outbound.index
+*.o2c.index
+*.o2hprof.index
+*.o2ret.index
+*.threads
+*.log.index
+*_Leak_Suspects.zip
+*_Top_Components.zip
+
+# OS / tooling
+.DS_Store
+Thumbs.db
+*.iml
+.idea/
