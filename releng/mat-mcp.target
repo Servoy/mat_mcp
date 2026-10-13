@@ -13,11 +13,19 @@
 		</location>
 
 		<!--
-			The local Eclipse Memory Analyzer install provides the org.eclipse.mat.* bundles we
-			build on (api / report / parser / hprof). A Directory location reads the plugins/
-			folder of the install directly, so we track exactly the MAT version in use.
+			Eclipse Memory Analyzer bundles (org.eclipse.mat.* api/report/parser + the ui bundle and
+			its Jetty EE8 / jakarta.servlet-api deps) resolved from MAT's official p2 update-site, so
+			the build works identically locally and on CI (a GitHub runner has no local MAT install).
+			Pin to the exact MAT version this plugin targets.
 		-->
-		<location path="C:/javatools/mat" type="Directory"/>
+		<location includeAllPlatforms="false" includeConfigurePhase="true" includeMode="planner" includeSource="false" type="InstallableUnit">
+			<repository location="https://download.eclipse.org/mat/1.17.0/update-site/"/>
+			<unit id="org.eclipse.mat.api" version="0.0.0"/>
+			<unit id="org.eclipse.mat.report" version="0.0.0"/>
+			<unit id="org.eclipse.mat.parser" version="0.0.0"/>
+			<unit id="org.eclipse.mat.hprof" version="0.0.0"/>
+			<unit id="org.eclipse.mat.ui" version="0.0.0"/>
+		</location>
 
 		<!--
 			Model Context Protocol Java SDK (and its Jackson JSON binding) from Maven Central,

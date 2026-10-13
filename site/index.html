@@ -1,0 +1,46 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>MAT MCP Server — Eclipse Update Site</title>
+<style>
+  body { font-family: system-ui, sans-serif; max-width: 820px; margin: 2rem auto; padding: 0 1rem; line-height: 1.5; color: #1c1c1c; }
+  h1 { font-size: 1.6rem; }
+  code, pre { background: #f4f4f4; border-radius: 4px; }
+  code { padding: 0.1rem 0.3rem; }
+  pre { padding: 0.8rem; overflow-x: auto; }
+  .url { font-size: 1.05rem; font-weight: 600; }
+  ol { padding-left: 1.2rem; }
+  .hint { color: #555; font-size: 0.9rem; }
+</style>
+</head>
+<body>
+  <h1>MAT MCP Server — Eclipse Update Site</h1>
+
+  <p>This is a p2 update site for the <strong>MAT MCP Server</strong> feature: it runs an
+  <a href="https://modelcontextprotocol.io/">MCP</a> server inside
+  <a href="https://eclipse.dev/mat/">Eclipse Memory Analyzer (MAT)</a> so an AI agent can analyze the
+  heap dump you have open, over HTTP at <code>http://127.0.0.1:8923/mcp</code>.</p>
+
+  <h2>Install into MAT</h2>
+  <ol>
+    <li>In MAT: <strong>Help → Install New Software…</strong></li>
+    <li>Paste this update-site URL into <em>Work with</em>:
+      <p class="url"><code id="site-url">loading…</code></p>
+    </li>
+    <li>Select <strong>MAT MCP Server</strong>, finish the wizard, and restart MAT.</li>
+    <li>On restart the server auto-starts; a green <strong>M</strong> toolbar icon means it is listening
+      (grey = stopped; the icon also toggles it).</li>
+  </ol>
+
+  <p class="hint">Requires MAT 1.17.x. Source and docs:
+    <a href="https://github.com/Servoy/mat_mcp">github.com/Servoy/mat_mcp</a>.</p>
+
+  <script>
+    // show the site's own URL (the directory this page is served from)
+    var base = location.href.replace(/index\.html.*$/, '').replace(/\/?$/, '/');
+    document.getElementById('site-url').textContent = base;
+  </script>
+</body>
+</html>
