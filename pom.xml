@@ -11,7 +11,7 @@
 	<name>MAT MCP Server (parent)</name>
 
 	<properties>
-		<tycho.version>4.0.13</tycho.version>
+		<tycho.version>5.0.4</tycho.version>
 		<maven.compiler.release>21</maven.compiler.release>
 		<project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
 	</properties>
