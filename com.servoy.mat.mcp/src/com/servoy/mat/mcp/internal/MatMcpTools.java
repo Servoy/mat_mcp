@@ -36,6 +36,7 @@ public final class MatMcpTools
 			oqlTool(),
 			histogramTool(),
 			readObjectTool(),
+			arrayElementsTool(),
 			outboundReferencesTool(),
 			inboundReferencesTool(),
 			pathToGcRootsTool(),
@@ -215,13 +216,42 @@ public final class MatMcpTools
 							"type", "integer",
 							"description", "Max outbound references to list (default 100)")),
 					"required", List.of("objectId")))
-			.description("Inspect one object: identity, sizes, GC-root status and its named outbound references with resolved targets.")
+			.description("Inspect one object: identity, sizes, GC-root status, its instance fields (or static fields for a class) with resolved values, and its named outbound references.")
 			.build();
 		return SyncToolSpecification.builder()
 			.tool(tool)
 			.callHandler((exchange, request) -> withSnapshot("read_object",
 				snapshot -> InspectionTools.readObject(snapshot, requireInt(request.arguments(), "objectId"),
 					intArg(request.arguments(), "maxReferences", 100))))
+			.build();
+	}
+
+	// ---- array_elements -------------------------------------------------------------------
+
+	private SyncToolSpecification arrayElementsTool()
+	{
+		Tool tool = Tool
+			.builder("array_elements",
+				Map.of(
+					"type", "object",
+					"properties", Map.of(
+						"objectId", Map.of(
+							"type", "integer",
+							"description", "MAT object id of an array object"),
+						"from", Map.of(
+							"type", "integer",
+							"description", "Start index (default 0)"),
+						"limit", Map.of(
+							"type", "integer",
+							"description", "Max elements to return from 'from' (default 100)")),
+					"required", List.of("objectId")))
+			.description("Elements of an array object: primitive values inline, or object descriptors for a reference array. Windowed by from/limit for large arrays.")
+			.build();
+		return SyncToolSpecification.builder()
+			.tool(tool)
+			.callHandler((exchange, request) -> withSnapshot("array_elements",
+				snapshot -> InspectionTools.arrayElements(snapshot, requireInt(request.arguments(), "objectId"),
+					intArg(request.arguments(), "from", 0), intArg(request.arguments(), "limit", 100))))
 			.build();
 	}
 

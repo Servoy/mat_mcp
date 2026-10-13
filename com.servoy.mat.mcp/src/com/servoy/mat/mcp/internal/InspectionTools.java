@@ -13,12 +13,17 @@ import java.util.regex.Pattern;
 import org.eclipse.mat.snapshot.Histogram;
 import org.eclipse.mat.snapshot.ISnapshot;
 import org.eclipse.mat.snapshot.ClassHistogramRecord;
+import org.eclipse.mat.snapshot.model.Field;
 import org.eclipse.mat.snapshot.model.GCRootInfo;
 import org.eclipse.mat.snapshot.model.IClass;
+import org.eclipse.mat.snapshot.model.IInstance;
 import org.eclipse.mat.snapshot.model.IObject;
+import org.eclipse.mat.snapshot.model.IObjectArray;
+import org.eclipse.mat.snapshot.model.IPrimitiveArray;
 import org.eclipse.mat.snapshot.model.IStackFrame;
 import org.eclipse.mat.snapshot.model.IThreadStack;
 import org.eclipse.mat.snapshot.model.NamedReference;
+import org.eclipse.mat.snapshot.model.ObjectReference;
 import org.eclipse.mat.util.VoidProgressListener;
 
 /**
@@ -91,6 +96,43 @@ public final class InspectionTools
 		sb.append(",\"isClassLoader\":").append(snapshot.isClassLoader(objectId));
 		sb.append(",\"isArray\":").append(snapshot.isArray(objectId));
 
+		// instance fields with resolved values: primitives inline, reference fields as {objectId,address}
+		if (o instanceof IInstance instance)
+		{
+			List<Field> fields = instance.getFields();
+			sb.append(",\"fields\":[");
+			boolean first = true;
+			for (Field f : fields)
+			{
+				if (!first) sb.append(',');
+				first = false;
+				sb.append('{');
+				sb.append("\"name\":").append(Json.escape(f.getName()));
+				sb.append(",\"type\":").append(Json.escape(f.getVerboseSignature()));
+				appendFieldValue(sb, snapshot, f.getValue());
+				sb.append('}');
+			}
+			sb.append(']');
+		}
+		else if (o instanceof IClass clazz)
+		{
+			// a Class object: expose its static fields the same way
+			List<Field> statics = clazz.getStaticFields();
+			sb.append(",\"staticFields\":[");
+			boolean first = true;
+			for (Field f : statics)
+			{
+				if (!first) sb.append(',');
+				first = false;
+				sb.append('{');
+				sb.append("\"name\":").append(Json.escape(f.getName()));
+				sb.append(",\"type\":").append(Json.escape(f.getVerboseSignature()));
+				appendFieldValue(sb, snapshot, f.getValue());
+				sb.append('}');
+			}
+			sb.append(']');
+		}
+
 		// outbound references (named): name -> target descriptor
 		List<NamedReference> refs = o.getOutboundReferences();
 		int shownRefs = Math.min(refs.size(), maxRefs);
@@ -114,6 +156,105 @@ public final class InspectionTools
 			sb.append('}');
 		}
 		sb.append(']');
+		sb.append('}');
+		return sb.toString();
+	}
+
+	/**
+	 * Renders a MAT field value as JSON. Reference fields come back as an {@link ObjectReference};
+	 * we resolve those to an {@code objectId}+{@code address} so they can be navigated. Primitive
+	 * fields are the boxed value and are written inline; null is null.
+	 */
+	private static void appendFieldValue(StringBuilder sb, ISnapshot snapshot, Object value)
+	{
+		if (value == null)
+		{
+			sb.append(",\"value\":null");
+			return;
+		}
+		if (value instanceof ObjectReference ref)
+		{
+			sb.append(",\"refAddress\":").append(Json.escape(ObjectJson.toHex(ref.getObjectAddress())));
+			try
+			{
+				sb.append(",\"refObjectId\":").append(ref.getObjectId());
+			}
+			catch (Exception ignore)
+			{
+				// reference target not in the heap; address only
+			}
+			return;
+		}
+		// primitive / String-ish boxed value
+		sb.append(",\"value\":").append(Json.value(value));
+	}
+
+	// ---- array_elements -------------------------------------------------------------------
+
+	/**
+	 * The elements of an array object. For a primitive array the values are written inline; for an
+	 * object (reference) array each element is an object descriptor. A window [from, from+limit) keeps
+	 * the response bounded on huge arrays.
+	 */
+	public static String arrayElements(ISnapshot snapshot, int objectId, int from, int limit) throws Exception
+	{
+		IObject o = snapshot.getObject(objectId);
+		if (!(o instanceof org.eclipse.mat.snapshot.model.IArray array))
+		{
+			return "{\"objectId\":" + objectId + ",\"error\":\"object is not an array\"}";
+		}
+		int length = array.getLength();
+		int start = Math.max(0, from);
+		int count = Math.max(0, Math.min(limit, length - start));
+
+		StringBuilder sb = new StringBuilder(512);
+		sb.append('{');
+		sb.append("\"objectId\":").append(objectId);
+		sb.append(",\"class\":").append(Json.escape(o.getClazz() != null ? o.getClazz().getName() : "?"));
+		sb.append(",\"length\":").append(length);
+		sb.append(",\"from\":").append(start);
+		sb.append(",\"returned\":").append(count);
+
+		if (array instanceof IPrimitiveArray prim)
+		{
+			sb.append(",\"primitive\":true");
+			sb.append(",\"componentType\":").append(Json.escape(prim.getComponentType().getName()));
+			sb.append(",\"elements\":[");
+			for (int i = 0; i < count; i++)
+			{
+				if (i > 0) sb.append(',');
+				sb.append(Json.value(prim.getValueAt(start + i)));
+			}
+			sb.append(']');
+		}
+		else if (array instanceof IObjectArray objArr)
+		{
+			sb.append(",\"primitive\":false");
+			long[] addresses = objArr.getReferenceArray(start, count);
+			sb.append(",\"elements\":[");
+			for (int i = 0; i < addresses.length; i++)
+			{
+				if (i > 0) sb.append(',');
+				long addr = addresses[i];
+				if (addr == 0)
+				{
+					sb.append("null");
+					continue;
+				}
+				sb.append('{');
+				sb.append("\"address\":").append(Json.escape(ObjectJson.toHex(addr)));
+				try
+				{
+					sb.append(",\"objectId\":").append(snapshot.mapAddressToId(addr));
+				}
+				catch (Exception ignore)
+				{
+					// element target not in the heap
+				}
+				sb.append('}');
+			}
+			sb.append(']');
+		}
 		sb.append('}');
 		return sb.toString();
 	}
