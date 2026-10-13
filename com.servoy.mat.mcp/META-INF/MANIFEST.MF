@@ -14,7 +14,9 @@ Require-Bundle: org.eclipse.core.runtime;bundle-version="3.3.100",
  org.eclipse.ui;bundle-version="3.200.0",
  org.eclipse.ui.ide;bundle-version="3.20.0",
  org.eclipse.jface;bundle-version="3.30.0",
- org.eclipse.swt;bundle-version="3.120.0"
+ org.eclipse.swt;bundle-version="3.120.0",
+ org.eclipse.e4.ui.model.workbench;bundle-version="2.4.0",
+ org.eclipse.e4.ui.workbench;bundle-version="1.18.0"
 Import-Package: org.eclipse.mat.snapshot,
  org.eclipse.mat.snapshot.model,
  org.eclipse.mat.snapshot.query,
@@ -36,4 +38,3 @@ Import-Package: org.eclipse.mat.snapshot,
  org.eclipse.jetty.util,
  org.eclipse.jetty.util.component,
  org.eclipse.jetty.ee10.servlet
-Service-Component: OSGI-INF/com.servoy.mat.mcp.internal.McpServerComponent.xml

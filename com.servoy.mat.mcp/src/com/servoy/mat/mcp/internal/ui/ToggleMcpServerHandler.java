@@ -17,13 +17,9 @@ import com.servoy.mat.mcp.internal.McpServerController;
 /**
  * Toolbar/menu command handler that toggles the MCP HTTP server on and off.
  *
- * <p>Having this handler in our own bundle is also what guarantees the bundle is started by the
- * workbench: as soon as the UI needs to render / enable the command it loads this class, which
- * activates the bundle (so even if auto-start via SCR did not run, clicking the button brings the
- * server up).</p>
- *
- * <p>The handler reports the honest outcome: if the port bind fails, the user sees the real error
- * (which is also logged via SLF4J to MAT's log), not a false "started" message.</p>
+ * <p>The button's icon and tooltip are kept in sync with the server state by {@link StatusToolbar}
+ * (which updates the live E4 model item), not by {@code IElementUpdater} - that is not invoked in the
+ * E4 workbench MAT runs on. After every start/stop we call {@link StatusToolbar#refresh()}.</p>
  */
 public class ToggleMcpServerHandler extends AbstractHandler
 {
@@ -37,19 +33,21 @@ public class ToggleMcpServerHandler extends AbstractHandler
 		{
 			controller.stop();
 			info(shell, "MCP server stopped.");
-			return null;
 		}
-
-		try
+		else
 		{
-			controller.start();
-			info(shell, "MCP server running on " + controller.endpointDescription());
+			try
+			{
+				controller.start();
+				info(shell, "MCP server running on " + controller.endpointDescription());
+			}
+			catch (Exception e)
+			{
+				error(shell, "MCP server failed to start:\n" + e.getClass().getSimpleName() + ": " + e.getMessage() +
+					"\n\nSee the MAT error log for the full stack trace.");
+			}
 		}
-		catch (Exception e)
-		{
-			error(shell, "MCP server failed to start:\n" + e.getClass().getSimpleName() + ": " + e.getMessage() +
-				"\n\nSee the MAT error log for the full stack trace.");
-		}
+		StatusToolbar.refresh();
 		return null;
 	}
 
