@@ -32,7 +32,7 @@ MAT process (Eclipse 4 workbench)
         ├─ com.servoy.mat.mcp bundle
         │     ├─ StartupMcpServer (org.eclipse.ui.startup) ── auto-starts the server on launch
         │     ├─ McpHttpServer ── embedded Jetty (EE10) hosting the MCP SDK servlet transport
-        │     ├─ MatMcpTools / InspectionTools / OqlRunner ── the 13 tools, JSON out
+        │     ├─ MatMcpTools / InspectionTools / OqlRunner ── the 14 tools, JSON out
         │     └─ ActiveSnapshot ── reads the ISnapshot of the active MAT heap-editor tab
         └─ MAT API: org.eclipse.mat.snapshot.* (ISnapshot, IObject, IThreadStack, ...)
 ```
@@ -59,7 +59,8 @@ Key design points:
 | `snapshot_overview()` | Object/class/GC-root counts, used heap, identifier size, JVM info of the active snapshot. |
 | `oql(query, maxRows?)` | Run MAT OQL; rows / object ids as JSON, capped by `maxRows`. |
 | `histogram(classNamePattern?, limit?)` | Top classes by shallow size and object count, optional class-name regex. |
-| `read_object(objectId, maxReferences?)` | One object: identity, sizes, GC-root flags, named outbound references with resolved targets. |
+| `read_object(objectId, maxReferences?)` | One object: identity, sizes, GC-root flags, instance fields (or a class's static fields) with resolved values, and named outbound references. |
+| `array_elements(objectId, from?, limit?)` | Elements of an array object: primitive values inline, object descriptors for a reference array; windowed by from/limit. |
 | `outbound_references(objectId, limit?)` | Objects this object points to. |
 | `inbound_references(objectId, limit?)` | Objects that point to this object (referrers). |
 | `path_to_gc_roots(objectId)` | Shortest reference path to a GC root — why the object is kept alive. |
