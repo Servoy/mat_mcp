@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<scr:component xmlns:scr="http://www.osgi.org/xmlns/scr/v1.4.0"
+      immediate="true"
+      activate="activate"
+      deactivate="deactivate"
+      name="com.servoy.mat.mcp.internal.McpServerComponent">
+   <implementation class="com.servoy.mat.mcp.internal.McpServerComponent"/>
+</scr:component>

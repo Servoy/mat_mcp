@@ -1,19 +1,41 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <?eclipse version="3.4"?>
 <plugin>
-   <!--
-      Headless Equinox application entry point. Launched like:
-         eclipsec.exe -application com.servoy.mat.mcp.server [heapdump.hprof]
-      The application opens the snapshot once and then serves MCP over stdio.
-   -->
-   <extension
-         id="server"
-         point="org.eclipse.core.runtime.applications">
-      <application
-            cardinality="singleton-global"
-            thread="main"
-            visible="true">
-         <run class="com.servoy.mat.mcp.internal.MatMcpApplication"/>
-      </application>
+   <!-- Toolbar + menu command to toggle the MCP HTTP server on/off. -->
+   <extension point="org.eclipse.ui.commands">
+      <command
+            id="com.servoy.mat.mcp.toggleServer"
+            name="Toggle MCP Server"
+            description="Start or stop the MAT MCP HTTP server"/>
+   </extension>
+
+   <extension point="org.eclipse.ui.handlers">
+      <handler
+            commandId="com.servoy.mat.mcp.toggleServer"
+            class="com.servoy.mat.mcp.internal.ui.ToggleMcpServerHandler"/>
+   </extension>
+
+   <extension point="org.eclipse.ui.menus">
+      <!-- main toolbar button -->
+      <menuContribution
+            allPopups="false"
+            locationURI="toolbar:org.eclipse.ui.main.toolbar?after=additions">
+         <toolbar id="com.servoy.mat.mcp.toolbar">
+            <command
+                  commandId="com.servoy.mat.mcp.toggleServer"
+                  label="MCP"
+                  tooltip="Start/stop the MAT MCP server"
+                  style="push"/>
+         </toolbar>
+      </menuContribution>
+      <!-- Window menu entry -->
+      <menuContribution
+            allPopups="false"
+            locationURI="menu:window?after=additions">
+         <command
+               commandId="com.servoy.mat.mcp.toggleServer"
+               label="Toggle MCP Server"
+               style="push"/>
+      </menuContribution>
    </extension>
 </plugin>

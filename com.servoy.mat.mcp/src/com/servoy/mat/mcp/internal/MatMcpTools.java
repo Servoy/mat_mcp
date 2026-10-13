@@ -7,7 +7,6 @@ package com.servoy.mat.mcp.internal;
 
 import java.util.List;
 import java.util.Map;
-import java.util.concurrent.atomic.AtomicReference;
 
 import org.eclipse.mat.snapshot.ISnapshot;
 
@@ -16,23 +15,17 @@ import io.modelcontextprotocol.spec.McpSchema.CallToolResult;
 import io.modelcontextprotocol.spec.McpSchema.Tool;
 
 /**
- * Builds the MCP tool specifications backed by a single open {@link SnapshotSession}.
+ * Builds the MCP tool specifications. The tools operate on the heap dump the user has open in the
+ * MAT workbench: {@code snapshot_overview} and {@code oql} target the <em>active</em>
+ * {@link org.eclipse.mat.ui.snapshot.editor.HeapEditor}'s snapshot, and {@code open_snapshot} opens
+ * a dump as a MAT editor tab so it becomes the active snapshot and is visible in the UI.
  *
- * <p>The session is held in an {@link AtomicReference} so {@code open_snapshot} can (re)point it at
- * a heap dump at run time, and every other tool reads the currently open snapshot. All results are
- * returned as JSON text content.</p>
+ * <p>So MCP always acts on "the dump I'm looking at", and all results are returned as JSON text.</p>
  */
 public final class MatMcpTools
 {
-	private final AtomicReference<SnapshotSession> session = new AtomicReference<>();
-
 	public MatMcpTools()
 	{
-	}
-
-	public MatMcpTools(SnapshotSession initial)
-	{
-		this.session.set(initial);
 	}
 
 	public List<SyncToolSpecification> specifications()
@@ -54,7 +47,7 @@ public final class MatMcpTools
 							"description", "Absolute path to the .hprof heap dump to open")),
 					"required", List.of("hprofPath")))
 			.description(
-				"Parse and open a heap dump once; the snapshot stays resident so later queries are cheap. Returns the heap overview as JSON.")
+				"Open a heap dump as a tab in the MAT workbench (it becomes the active snapshot that the other tools query). Returns the heap overview as JSON.")
 			.build();
 
 		return SyncToolSpecification.builder()
@@ -63,13 +56,15 @@ public final class MatMcpTools
 				String path = stringArg(request.arguments(), "hprofPath");
 				try
 				{
-					SnapshotSession opened = SnapshotSession.open(path);
-					SnapshotSession previous = session.getAndSet(opened);
-					if (previous != null)
+					ISnapshot snapshot = ActiveSnapshot.openInEditor(path);
+					if (snapshot != null)
 					{
-						previous.close();
+						return ok(SnapshotJson.overview(snapshot));
 					}
-					return ok(opened.overviewJson());
+					// The editor was requested; MAT parses the dump on a background job and shows a
+					// progress bar. The snapshot is not ready yet - tell the caller to poll.
+					return ok("{\"status\":\"opening\",\"message\":\"Heap dump is being opened/parsed in MAT. "
+						+ "Call snapshot_overview or oql shortly to use it once parsing finishes.\"}");
 				}
 				catch (Exception e)
 				{
@@ -85,18 +80,18 @@ public final class MatMcpTools
 	{
 		Tool tool = Tool
 			.builder("snapshot_overview", Map.of("type", "object", "properties", Map.of()))
-			.description("Return a JSON overview of the currently open snapshot (object/class/GC-root counts, used heap, JVM info).")
+			.description("Return a JSON overview of the active heap-dump editor's snapshot (object/class/GC-root counts, used heap, JVM info).")
 			.build();
 
 		return SyncToolSpecification.builder()
 			.tool(tool)
 			.callHandler((exchange, request) -> {
-				SnapshotSession current = session.get();
-				if (current == null)
+				ISnapshot snapshot = ActiveSnapshot.activeSnapshot();
+				if (snapshot == null)
 				{
-					return error("No snapshot open. Call open_snapshot first.");
+					return error(noActiveSnapshotMessage());
 				}
-				return ok(current.overviewJson());
+				return ok(SnapshotJson.overview(snapshot));
 			})
 			.build();
 	}
@@ -117,22 +112,21 @@ public final class MatMcpTools
 							"type", "integer",
 							"description", "Maximum rows / object ids to return (default 200)")),
 					"required", List.of("query")))
-			.description("Run a MAT OQL query against the open snapshot and return rows / object ids as JSON (capped by maxRows).")
+			.description("Run a MAT OQL query against the active heap-dump editor's snapshot and return rows / object ids as JSON (capped by maxRows).")
 			.build();
 
 		return SyncToolSpecification.builder()
 			.tool(tool)
 			.callHandler((exchange, request) -> {
-				SnapshotSession current = session.get();
-				if (current == null)
+				ISnapshot snapshot = ActiveSnapshot.activeSnapshot();
+				if (snapshot == null)
 				{
-					return error("No snapshot open. Call open_snapshot first.");
+					return error(noActiveSnapshotMessage());
 				}
 				String oql = stringArg(request.arguments(), "query");
 				int maxRows = intArg(request.arguments(), "maxRows", 200);
 				try
 				{
-					ISnapshot snapshot = current.getSnapshot();
 					return ok(OqlRunner.runToJson(snapshot, oql, maxRows));
 				}
 				catch (Exception e)
@@ -145,18 +139,18 @@ public final class MatMcpTools
 
 	// ---- helpers --------------------------------------------------------------------------
 
-	SnapshotSession currentSession()
-	{
-		return session.get();
-	}
-
 	void closeSession()
 	{
-		SnapshotSession current = session.getAndSet(null);
-		if (current != null)
+		// Snapshots are owned by the MAT editors now; nothing to dispose here.
+	}
+
+	private static String noActiveSnapshotMessage()
+	{
+		if (!ActiveSnapshot.isWorkbenchAvailable())
 		{
-			current.close();
+			return "No MAT workbench UI available.";
 		}
+		return "No heap dump is open in MAT. Open one in the UI, or call open_snapshot with a .hprof path.";
 	}
 
 	private static String stringArg(Map<String, Object> args, String name)

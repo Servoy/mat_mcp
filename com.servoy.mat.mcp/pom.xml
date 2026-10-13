@@ -12,4 +12,6 @@
 
 	<artifactId>com.servoy.mat.mcp</artifactId>
 	<packaging>eclipse-plugin</packaging>
+
+
 </project>

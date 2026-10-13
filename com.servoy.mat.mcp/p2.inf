@@ -1,0 +1,8 @@
+# Ensure this bundle is started (ACTIVE), not merely resolved, once installed into MAT.
+#
+# Nothing in MAT references com.servoy.mat.mcp, so without this the bundle stays in RESOLVED
+# state and SCR never processes its immediate DS component (the MCP HTTP server would never
+# start). This p2 touchpoint instruction makes p2 mark the bundle as auto-start, equivalent to
+# flipping the bundles.info flag from 'false' to 'true'.
+instructions.configure=\
+  markStarted(started: true);
