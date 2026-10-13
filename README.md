@@ -1,7 +1,10 @@
 # mat-mcp — Eclipse MAT heap-dump analysis over MCP
 
-An Eclipse feature, built **on top of Eclipse Memory Analyzer (MAT)**, that exposes
-MAT's heap-dump analysis to AI agents through the **Model Context Protocol (MCP)**.
+An Eclipse feature, built **on top of Eclipse Memory Analyzer (MAT)**, that exposes MAT's
+heap-dump analysis to AI agents through the **Model Context Protocol (MCP)**.
+
+It installs into a stock MAT, auto-starts an MCP server over HTTP, and lets an MCP client
+query the heap dump you have open in MAT — with results returned as structured JSON.
 
 ## Why
 
@@ -12,62 +15,87 @@ generated report XML per question) is slow and awkward:
 - OQL has to be smuggled through report-XML `<command>` tags, which is fragile (schema and
   parser errors) and returns HTML that then has to be scraped;
 - the report/OQL route cannot read **thread-stack frame locals**, which is exactly what you
-  need to find things like the actual `index` argument on a frame in an OOM stack.
+  need to find things like the actual array/argument a method held on a frame in an OOM stack.
 
-This project instead keeps **one long-lived MAT runtime** with the snapshot parsed **once**
-in memory, and answers each question against that open `ISnapshot`. The dear parse happens
-a single time; OQL / dominator-tree / path-to-GC-roots / object inspection then all become
-cheap follow-up calls, and results are returned as structured **JSON** instead of HTML.
+This project instead keeps the MAT runtime alive with the snapshot parsed **once** (the dump
+you open in MAT), and answers each question against that open `ISnapshot`. OQL, dominator
+tree, path-to-GC-roots, object inspection and thread-stack locals all become cheap follow-up
+calls, returned as JSON.
 
 ## Architecture
 
 ```
-opencode / OpenChamber  ──MCP (stdio)──▶  mat-mcp OSGi plugin (one Equinox process)
-                                              │
-                                              ├─ MAT API: org.eclipse.mat.snapshot.*
-                                              │     SnapshotFactory.openSnapshot(...)  → ISnapshot (kept open)
-                                              │     IOQLQuery / SnapshotFactory.createQuery
-                                              │     IThreadStack.getLocalVariables()   ← frame locals (not available via OQL)
-                                              │
-                                              └─ MCP server (io.modelcontextprotocol.sdk:mcp-core)
-                                                    tools map 1:1 onto ISnapshot operations, JSON out
+MCP client (opencode / OpenChamber / ...)
+        │  HTTP, MCP Streamable  →  http://127.0.0.1:8923/mcp
+        ▼
+MAT process (Eclipse 4 workbench)
+        ├─ com.servoy.mat.mcp bundle
+        │     ├─ StartupMcpServer (org.eclipse.ui.startup) ── auto-starts the server on launch
+        │     ├─ McpHttpServer ── embedded Jetty (EE10) hosting the MCP SDK servlet transport
+        │     ├─ MatMcpTools / InspectionTools / OqlRunner ── the 13 tools, JSON out
+        │     └─ ActiveSnapshot ── reads the ISnapshot of the active MAT heap-editor tab
+        └─ MAT API: org.eclipse.mat.snapshot.* (ISnapshot, IObject, IThreadStack, ...)
 ```
 
-- **One process.** The plugin runs as a headless Equinox application that both opens the
-  MAT snapshot and hosts the MCP server, so the parsed snapshot and its indexes stay in
-  memory for the whole session.
-- **Public MAT API only, where possible.** We build on the exported packages
-  (`org.eclipse.mat.snapshot`, `.snapshot.model`, `.snapshot.query`, `org.eclipse.mat.query`,
-  `.query.results`, `org.eclipse.mat.parser.model`). Where a needed capability is only
-  reachable through an `x-friends` / internal package, we isolate that behind our own
-  interface and — if it turns out to be genuinely required — raise it upstream as a MAT
-  pull request to get it promoted to public API, rather than depending on internals forever.
+Key design points:
 
-## Planned MCP tools
+- **Runs inside MAT, over HTTP (not stdio).** The server lives for the whole MAT process so
+  the parsed snapshot stays resident; a client connects by URL instead of spawning a
+  short-lived process per request. Host/port: `-Dmat.mcp.host` / `-Dmat.mcp.port`
+  (default `127.0.0.1:8923`), endpoint `/mcp`.
+- **Follows the active heap-editor.** The tools operate on the dump you have open in MAT;
+  `open_snapshot` opens one as a MAT editor tab so it becomes the active snapshot.
+- **Public MAT API where possible.** Tools build on exported packages
+  (`org.eclipse.mat.snapshot`, `.snapshot.model`, `.snapshot.query`, `org.eclipse.mat.query`).
+  Reading the active editor's snapshot needs MAT's non-exported `HeapEditor` /
+  `ISnapshotEditorInput`, which is done reflectively (see AGENTS.md); a proper fix is a MAT
+  pull request to make that editor API public.
 
-| Tool | MAT backing | Notes |
-|------|-------------|-------|
-| `open_snapshot(hprofPath)` | `SnapshotFactory.openSnapshot` | parse/load once, return a session handle + overview |
-| `snapshot_overview()` | `ISnapshot` counts | #objects, #classes, used heap, identifier size |
-| `oql(query)` | `SnapshotFactory.createQuery` / `IOQLQuery` | returns rows as JSON, not HTML |
-| `histogram(limit)` | class histogram | top-N classes by count / shallow / retained |
-| `dominator_tree(objectId?, limit)` | dominator tree | biggest retainers |
-| `path_to_gc_roots(objectId)` | `ISnapshot.getPathsFromGCRoots` / merged paths | why an object is kept alive |
-| `inbound_references(objectId)` / `outbound_references(objectId)` | `getInboundRefererentIds` / outbound | reference navigation |
-| `read_object(objectId)` | `IObject` fields | field names + resolved values |
-| `thread_stacks()` | `IThreadStack` / `getStackFrames` / `getLocalVariables` | **frame locals** — the gap OQL cannot fill |
-| `leak_suspects()` | MAT leak report | optional convenience, first-pass triage |
+## MCP tools
+
+| Tool | What it does |
+|------|--------------|
+| `open_snapshot(hprofPath)` | Open a .hprof as a MAT editor tab (becomes the active snapshot); returns the overview. Parses asynchronously, so the first call may return `{"status":"opening"}`. |
+| `snapshot_overview()` | Object/class/GC-root counts, used heap, identifier size, JVM info of the active snapshot. |
+| `oql(query, maxRows?)` | Run MAT OQL; rows / object ids as JSON, capped by `maxRows`. |
+| `histogram(classNamePattern?, limit?)` | Top classes by shallow size and object count, optional class-name regex. |
+| `read_object(objectId, maxReferences?)` | One object: identity, sizes, GC-root flags, named outbound references with resolved targets. |
+| `outbound_references(objectId, limit?)` | Objects this object points to. |
+| `inbound_references(objectId, limit?)` | Objects that point to this object (referrers). |
+| `path_to_gc_roots(objectId)` | Shortest reference path to a GC root — why the object is kept alive. |
+| `retained_set(objectIds)` | Heap that would be freed if the given objects were collected. |
+| `top_dominator_classes(limit?)` | Classes retaining the most heap (dominator tree grouped by class). |
+| `class_details(name, regex?, limit?)` | Find classes by name/regex: counts, per-instance size, superclass, array flag. |
+| `gc_roots(limit?)` | GC roots with class and root type. |
+| `thread_stacks(maxLocalsPerFrame?)` | Every thread with its stack frames **and the local objects per frame** — the capability OQL cannot provide. |
+
+Every object is reported with both its MAT `objectId` (stable for the snapshot's life, accepted
+by the other tools) and its hex `address`, so calls can be chained
+(`oql` → `objectId` → `path_to_gc_roots`).
+
+## Install
+
+1. Build the update site (see below) or use `com.servoy.mat.mcp.repository/target/*.zip`.
+2. In MAT: **Help → Install New Software → Add → Archive**, select the zip, install the
+   "MAT MCP Server" feature, restart MAT.
+3. On restart the server auto-starts; the toolbar shows a green **M** icon when it is
+   listening (grey when stopped). The icon is also a start/stop toggle.
 
 ## Build
 
-- **Target platform:** the local MAT install (`c:\javatools\mat`) plus the MCP Java SDK
-  jars, declared in `releng/mat-mcp.target`.
-- **Build system:** Eclipse PDE / Tycho (plugin + feature). `mvn clean verify` once the
-  Tycho `pom.xml` files are in place.
+- **Target platform:** the local MAT install (`C:/javatools/mat`) plus the MCP Java SDK and the
+  Jetty EE10 servlet layer, declared in `releng/mat-mcp.target`.
+- **Build:** Eclipse PDE / Tycho. `mvn clean verify` builds the plugin, feature and p2
+  repository.
 - Requires Java 21+ (matching the MAT install's JVM).
 
-## Status
+## Modules
 
-Skeleton stage: repo + PDE plugin `com.servoy.mat.mcp` + feature + target definition, with a
-first `open_snapshot` tool that opens an `ISnapshot` and returns the heap overview. Everything
-else above is scaffolding to be filled in iteratively.
+- `com.servoy.mat.mcp` — the plugin (MCP server, tools, UI).
+- `com.servoy.mat.mcp.feature` — installable feature bundling the plugin + the runtime bundles
+  MAT lacks (MCP SDK, reactor, Jetty EE10, ...).
+- `com.servoy.mat.mcp.repository` — p2 update site (`eclipse-repository`).
+- `releng/mat-mcp.target` — the target-platform definition.
+
+See **AGENTS.md** for the implementation notes and the hard-won gotchas (OSGi access layers,
+E4 vs 3.x UI, the JSON-mapper/validator service-loader trap, auto-start).
